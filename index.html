@@ -7,32 +7,32 @@
 <style>
 :root{--bg:#101614;--surface:#18211e;--ink:#e6ece9;--muted:#9aa9a3;--line:#2c3a35;--accent:#3fb6a0;--ok:#62c88a;--warn:#e0b04a}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:max(12px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left))}
-h1{font-size:18px;margin:0 0 8px}
-.cam{position:relative;background:#000;border-radius:10px;overflow:hidden;max-width:560px;margin:0 auto}
-video{display:block;width:100%;transform-origin:50% 50%}
-.frame{position:absolute;left:4%;right:4%;top:40%;bottom:40%;border:3px solid var(--accent);border-radius:8px;box-shadow:0 0 0 999px rgba(0,0,0,.5);pointer-events:none}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:0 max(10px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(10px,env(safe-area-inset-left))}
+#top{position:sticky;top:0;z-index:5;background:var(--bg);padding:max(8px,env(safe-area-inset-top)) 0 6px;border-bottom:1px solid var(--line)}
+.cam{position:relative;background:#000;border-radius:10px;overflow:hidden;max-width:560px;margin:0 auto;height:118px}
+video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform-origin:50% 50%}
+.frame{position:absolute;left:4%;right:4%;top:20%;bottom:20%;border:3px solid var(--accent);border-radius:8px;box-shadow:0 0 0 999px rgba(0,0,0,.5);pointer-events:none}
 .frame.hit{border-color:var(--ok)}
-.row{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0;max-width:560px;margin-inline:auto}
-button{font:600 16px inherit;font-family:inherit;border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:12px 16px;border-radius:8px;flex:1 1 auto}
+.row{display:flex;gap:6px;align-items:center;margin:6px auto 0;max-width:560px}
+button{font:600 14px inherit;font-family:inherit;border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:9px 10px;border-radius:8px;flex:1 1 auto}
 button.primary{background:var(--accent);color:#06201b;border-color:var(--accent)}
-#msg{max-width:560px;margin:8px auto;padding:10px 12px;border-radius:8px;background:var(--surface);color:var(--muted)}
+#msg{max-width:560px;margin:6px auto 0;padding:6px 10px;border-radius:8px;background:var(--surface);color:var(--muted);font-size:14px}
 #msg.ok{color:var(--ok)}
 #msg.warn{color:var(--warn)}
+.count{flex:0 0 auto;font-size:22px;font-weight:700;min-width:44px;text-align:center}
+#zlab{flex:0 0 auto;color:var(--muted);font-size:13px;min-width:72px;text-align:center}
 .list{max-width:560px;margin:0 auto}
 .item{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--line);font-family:ui-monospace,Menlo,monospace;font-size:15px;word-break:break-all}
 .item button{flex:0 0 auto;padding:6px 10px;font-size:14px}
-.count{font-size:34px;font-weight:700;text-align:center}
 </style>
 </head>
 <body>
-<h1>Seri Okuyucu</h1>
-<div class="cam"><video id="v" playsinline muted></video><div class="frame" id="f"></div></div>
-<div id="msg">Kamerayı başlatmak için aşağıdaki düğmeye bas.</div>
-<div class="row"><button class="primary" id="start">Kamerayı başlat</button><button id="stop">Durdur</button></div>
-<div class="row"><button id="zout">Zoom −</button><button id="zin">Zoom +</button><span id="zlab" style="align-self:center;color:var(--muted)">2.0x</span></div>
-<div class="count" id="count">0</div>
-<div class="row"><button class="primary" id="copy">Listeyi kopyala</button><button id="clear">Listeyi temizle</button></div>
+<div id="top">
+<div class="cam" id="cam"><video id="v" playsinline muted></video><div class="frame" id="f"></div></div>
+<div id="msg">Kamerayı başlatmak için "Başlat"a bas.</div>
+<div class="row"><button class="primary" id="start">Başlat</button><button id="stop">Durdur</button><button id="zout">Zoom −</button><button id="zin">Zoom +</button><span id="zlab">2.0x</span></div>
+<div class="row"><span class="count" id="count">0</span><button class="primary" id="copy">Listeyi kopyala</button><button id="clear">Temizle</button></div>
+</div>
 <div class="list" id="list"></div>
 <script src="https://cdn.jsdelivr.net/npm/@undecaf/zbar-wasm@0.11.0/dist/inlined/index.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"></script>
@@ -100,7 +100,10 @@ async function start(){
     if(!running)return;
     try{
       if(v.videoWidth){
-        var vw=v.videoWidth,vh=v.videoHeight,cw=Math.round(vw*.92/dz),ch=Math.round(vh*.2/dz),cx=Math.round((vw-cw)/2),cy=Math.round((vh-ch)/2);
+        var vw=v.videoWidth,vh=v.videoHeight,bb=document.getElementById('cam').getBoundingClientRect();
+        var scl=Math.max(bb.width/vw,bb.height/vh);                         // object-fit:cover ölçeği
+        var cw=Math.min(vw,Math.round(vw*.92*(bb.width/(vw*scl))/dz)),ch=Math.min(vh,Math.round(bb.height*.6/(scl*dz)));
+        var cx=Math.round((vw-cw)/2),cy=Math.round((vh-ch)/2);
         var sc=Math.min(1,960/cw);cv.width=Math.round(cw*sc);cv.height=Math.round(ch*sc);
         ctx.drawImage(v,cx,cy,cw,ch,0,0,cv.width,cv.height);
         var code=null;
