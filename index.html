@@ -160,12 +160,23 @@ function mailText(){
   return 'Merhaba,\n\naşağıdaki listede bulunan ürünler izmir depoya teslim edilmiştir.\n\n'+lines.join('\n')+'\n';
 }
 function gmailUrl(t){return 'https://mail.google.com/mail/?view=cm&fs=1&to='+encodeURIComponent(MAIL_TO.join(','))+'&body='+encodeURIComponent(t).replace(/%0A/g,'%0D%0A');}
+function enc(t){return encodeURIComponent(t).replace(/%0A/g,'%0D%0A');}
+function appUrl(t){return 'googlegmail:///co?to='+encodeURIComponent(MAIL_TO.join(','))+'&body='+enc(t);}
+function mailtoUrl(t){return 'mailto:'+MAIL_TO.join(',')+'?body='+enc(t);}
 function showMail(){
   if(!items.length){say('Listede ürün yok.','warn');return;}
   var eksik=items.filter(function(i){return !i.kod;}).length,noWo=items.filter(function(i){return !woList(i.wo).length;}).length;
-  var w=window.open(gmailUrl(mailText()),'_blank');
+  var t=mailText(),ua=navigator.userAgent||'',ios=/iPhone|iPad|iPod/.test(ua)||(/Macintosh/.test(ua)&&navigator.maxTouchPoints>1),android=/Android/.test(ua);
+  var warn=(eksik?(' UYARI: '+eksik+' üründe ürün adı yok.'):'')+(noWo?(' '+noWo+' üründe iş emri yok.'):'');
+  if(ios){
+    say('Gmail uygulaması açılıyor: konuyu yaz ve gönder.'+warn,(eksik||noWo)?'warn':'ok');
+    var l=document.createElement('a');l.href=mailtoUrl(t);l.textContent=' Açılmadıysa buraya dokun (Mail uygulaması).';msg.append(l);
+    window.location.href=appUrl(t);return;
+  }
+  if(android){say('Mail uygulaması açılıyor: konuyu yaz ve gönder.'+warn,(eksik||noWo)?'warn':'ok');window.location.href=mailtoUrl(t);return;}
+  var w=window.open(gmailUrl(t),'_blank');
   if(!w){say('Gmail açılamadı: tarayıcı açılır pencereyi engelledi. Bu site için izin ver.','warn');return;}
-  say('Gmail taslağı açıldı: konuyu yaz ve gönder.'+(eksik?(' UYARI: '+eksik+' üründe ürün adı yok.'):'')+(noWo?(' '+noWo+' üründe iş emri yok.'):''),(eksik||noWo)?'warn':'ok');
+  say('Gmail taslağı açıldı: konuyu yaz ve gönder.'+warn,(eksik||noWo)?'warn':'ok');
 }
 var dl=document.getElementById('urunList');Object.keys(URUN).forEach(function(k){var o=document.createElement('option');o.value=k+' · '+URUN[k];dl.append(o);});
 document.getElementById('bulk').value=bulk;
