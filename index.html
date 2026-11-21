@@ -11,7 +11,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 -apple-system,
 h1{font-size:18px;margin:0 0 8px}
 .cam{position:relative;background:#000;border-radius:10px;overflow:hidden;max-width:560px;margin:0 auto}
 video{display:block;width:100%}
-.frame{position:absolute;left:8%;right:8%;top:32%;bottom:32%;border:3px solid var(--accent);border-radius:8px;box-shadow:0 0 0 999px rgba(0,0,0,.5);pointer-events:none}
+.frame{position:absolute;left:5%;right:5%;top:29%;bottom:29%;border:3px solid var(--accent);border-radius:8px;box-shadow:0 0 0 999px rgba(0,0,0,.5);pointer-events:none}
 .frame.hit{border-color:var(--ok)}
 .row{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0;max-width:560px;margin-inline:auto}
 button{font:600 16px inherit;font-family:inherit;border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:12px 16px;border-radius:8px;flex:1 1 auto}
@@ -33,6 +33,7 @@ button.primary{background:var(--accent);color:#06201b;border-color:var(--accent)
 <div class="count" id="count">0</div>
 <div class="row"><button class="primary" id="copy">Listeyi kopyala</button><button id="clear">Listeyi temizle</button></div>
 <div class="list" id="list"></div>
+<script src="https://cdn.jsdelivr.net/npm/@undecaf/zbar-wasm@0.11.0/dist/inlined/index.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"></script>
 <script>
 (function(){
@@ -40,7 +41,7 @@ button.primary{background:var(--accent);color:#06201b;border-color:var(--accent)
 var KEY='okuyucu_liste_v1';
 var items=[];try{items=JSON.parse(localStorage.getItem(KEY)||'[]');}catch(e){}
 var v=document.getElementById('v'),fr=document.getElementById('f'),msg=document.getElementById('msg');
-var stream=null,timer=null,busy=false,last='',lastAt=0,det=null,reader=null;
+var stream=null,timer=null,busy=false,running=false,last='',lastAt=0,det=null,reader=null;
 function save(){try{localStorage.setItem(KEY,JSON.stringify(items));}catch(e){}}
 function say(t,c){msg.textContent=t;msg.className=c||'';}
 function beep(ok){
@@ -68,29 +69,39 @@ function add(code){
 async function start(){
   if(stream)return;
   if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){say('Bu tarayıcıda kamera yok. Safari ya da Chrome ile aç.','warn');return;}
-  try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}},audio:false});}
+  try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080}},audio:false});}
   catch(e){say('Kamera izni verilmedi. Tarayıcı ayarlarından bu site için kamerayı aç.','warn');return;}
+  try{var tr=stream.getVideoTracks()[0],cp=tr.getCapabilities?tr.getCapabilities():{};
+    var adv=[];if(cp.focusMode&&cp.focusMode.indexOf('continuous')>=0)adv.push({focusMode:'continuous'});
+    if(adv.length)await tr.applyConstraints({advanced:adv});}catch(eF){}
   v.srcObject=stream;try{await v.play();}catch(e2){}
   say('Barkodu çerçevenin içine getir. Okunan seri otomatik listeye eklenir.');
+  det=null;reader=null;
   if('BarcodeDetector' in window){try{det=new window.BarcodeDetector();}catch(e3){det=null;}}
-  if(!det&&window.ZXing){var h=new Map();h.set(window.ZXing.DecodeHintType.TRY_HARDER,true);reader=new window.ZXing.MultiFormatReader();reader.setHints(h);}
+  var useZbar=!det&&window.zbarWasm&&window.zbarWasm.scanImageData;
+  if(!det&&!useZbar&&window.ZXing){reader=new window.ZXing.MultiFormatReader();}
   var cv=document.createElement('canvas'),ctx=cv.getContext('2d',{willReadFrequently:true});
-  timer=setInterval(async function(){
-    if(busy||!v.videoWidth)return;busy=true;
+  running=true;
+  async function loop(){
+    if(!running)return;
     try{
-      var vw=v.videoWidth,vh=v.videoHeight,cw=Math.round(vw*.84),ch=Math.round(vh*.36),cx=Math.round((vw-cw)/2),cy=Math.round((vh-ch)/2);
-      var sc=Math.min(1,1100/cw);cv.width=Math.round(cw*sc);cv.height=Math.round(ch*sc);
-      ctx.drawImage(v,cx,cy,cw,ch,0,0,cv.width,cv.height);
-      var code=null;
-      if(det){var r=await det.detect(cv);if(r&&r.length&&r[0].rawValue)code=r[0].rawValue;}
-      else if(reader){try{var ls=new window.ZXing.HTMLCanvasElementLuminanceSource(cv);code=reader.decodeWithState(new window.ZXing.BinaryBitmap(new window.ZXing.HybridBinarizer(ls))).getText();}catch(e4){}}
-      if(code){var now=Date.now();if(code!==last||now-lastAt>3000){last=code;add(code);}lastAt=now;}
+      if(v.videoWidth){
+        var vw=v.videoWidth,vh=v.videoHeight,cw=Math.round(vw*.9),ch=Math.round(vh*.42),cx=Math.round((vw-cw)/2),cy=Math.round((vh-ch)/2);
+        var sc=Math.min(1,960/cw);cv.width=Math.round(cw*sc);cv.height=Math.round(ch*sc);
+        ctx.drawImage(v,cx,cy,cw,ch,0,0,cv.width,cv.height);
+        var code=null;
+        if(det){var r=await det.detect(cv);if(r&&r.length&&r[0].rawValue)code=r[0].rawValue;}
+        else if(useZbar){var sy=await window.zbarWasm.scanImageData(ctx.getImageData(0,0,cv.width,cv.height));if(sy&&sy.length)code=sy[0].decode();}
+        else if(reader){try{var ls=new window.ZXing.HTMLCanvasElementLuminanceSource(cv);code=reader.decodeWithState(new window.ZXing.BinaryBitmap(new window.ZXing.HybridBinarizer(ls))).getText();}catch(e4){}}
+        if(code){var now=Date.now();if(code!==last||now-lastAt>2500){last=code;add(code);}lastAt=now;}
+      }
     }catch(e5){}
-    busy=false;
-  },280);
+    setTimeout(loop,0);
+  }
+  loop();
 }
 function stop(){
-  if(timer){clearInterval(timer);timer=null;}
+  running=false;if(timer){clearInterval(timer);timer=null;}
   if(stream){stream.getTracks().forEach(function(t){t.stop();});stream=null;}
   v.srcObject=null;say('Kamera durdu.');
 }
