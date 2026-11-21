@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Seri Okuyucu</title>
+<title>Seri Okuyucu v8</title>
 <style>
 :root{--bg:#101614;--surface:#18211e;--ink:#e6ece9;--muted:#9aa9a3;--line:#2c3a35;--accent:#3fb6a0;--ok:#62c88a;--warn:#e0b04a}
 *{box-sizing:border-box}
@@ -38,7 +38,7 @@ textarea{width:100%;min-height:200px;font:13px ui-monospace,Menlo,monospace;colo
 <body>
 <div id="top">
 <div class="cam" id="cam"><video id="v" playsinline muted></video><div class="frame" id="f"></div></div>
-<div id="msg">Önce işlemi seç, sonra Başlat'a bas.</div>
+<div id="msg">Önce işlemi seç, sonra Başlat'a bas. (sürüm v8)</div>
 <div class="row"><button id="mSok" class="on">Söküm</button><button id="mYeni">Yeni ürün</button></div>
 <div class="row"><button class="primary" id="start">Başlat</button><button id="stop">Durdur</button><button id="zout">Zoom −</button><button id="zin">Zoom +</button><span id="zlab">2.0x</span></div>
 <div class="row" id="sokRow"><input type="text" id="bulk" inputmode="numeric" placeholder="İş emri no (okunanlara otomatik)"><button id="applyAll">Hepsine uygula</button></div>
@@ -169,9 +169,11 @@ function showMail(){
   var t=mailText(),ua=navigator.userAgent||'',ios=/iPhone|iPad|iPod/.test(ua)||(/Macintosh/.test(ua)&&navigator.maxTouchPoints>1),android=/Android/.test(ua);
   var warn=(eksik?(' UYARI: '+eksik+' üründe ürün adı yok.'):'')+(noWo?(' '+noWo+' üründe iş emri yok.'):'');
   if(ios){
-    say('Gmail uygulaması açılıyor: konuyu yaz ve gönder.'+warn,(eksik||noWo)?'warn':'ok');
-    var l=document.createElement('a');l.href=mailtoUrl(t);l.textContent=' Açılmadıysa buraya dokun (Mail uygulaması).';msg.append(l);
-    window.location.href=appUrl(t);return;
+    say('Mail uygulaması açılıyor.'+warn+' Açılmazsa dokun: ',(eksik||noWo)?'warn':'ok');
+    var l1=document.createElement('a');l1.href=appUrl(t);l1.textContent='Gmail uygulamasında aç';
+    var l2=document.createElement('a');l2.href=mailtoUrl(t);l2.textContent='Mail uygulamasıyla aç';
+    msg.append(l1,document.createTextNode(' · '),l2);
+    window.location.href=mailtoUrl(t);return;
   }
   if(android){say('Mail uygulaması açılıyor: konuyu yaz ve gönder.'+warn,(eksik||noWo)?'warn':'ok');window.location.href=mailtoUrl(t);return;}
   var w=window.open(gmailUrl(t),'_blank');
