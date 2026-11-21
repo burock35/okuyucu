@@ -10,8 +10,8 @@
 body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:max(12px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left))}
 h1{font-size:18px;margin:0 0 8px}
 .cam{position:relative;background:#000;border-radius:10px;overflow:hidden;max-width:560px;margin:0 auto}
-video{display:block;width:100%}
-.frame{position:absolute;left:5%;right:5%;top:29%;bottom:29%;border:3px solid var(--accent);border-radius:8px;box-shadow:0 0 0 999px rgba(0,0,0,.5);pointer-events:none}
+video{display:block;width:100%;transform-origin:50% 50%}
+.frame{position:absolute;left:4%;right:4%;top:40%;bottom:40%;border:3px solid var(--accent);border-radius:8px;box-shadow:0 0 0 999px rgba(0,0,0,.5);pointer-events:none}
 .frame.hit{border-color:var(--ok)}
 .row{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0;max-width:560px;margin-inline:auto}
 button{font:600 16px inherit;font-family:inherit;border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:12px 16px;border-radius:8px;flex:1 1 auto}
@@ -30,6 +30,7 @@ button.primary{background:var(--accent);color:#06201b;border-color:var(--accent)
 <div class="cam"><video id="v" playsinline muted></video><div class="frame" id="f"></div></div>
 <div id="msg">Kamerayı başlatmak için aşağıdaki düğmeye bas.</div>
 <div class="row"><button class="primary" id="start">Kamerayı başlat</button><button id="stop">Durdur</button></div>
+<div class="row"><button id="zout">Zoom −</button><button id="zin">Zoom +</button><span id="zlab" style="align-self:center;color:var(--muted)">2.0x</span></div>
 <div class="count" id="count">0</div>
 <div class="row"><button class="primary" id="copy">Listeyi kopyala</button><button id="clear">Listeyi temizle</button></div>
 <div class="list" id="list"></div>
@@ -41,7 +42,19 @@ button.primary{background:var(--accent);color:#06201b;border-color:var(--accent)
 var KEY='okuyucu_liste_v1';
 var items=[];try{items=JSON.parse(localStorage.getItem(KEY)||'[]');}catch(e){}
 var v=document.getElementById('v'),fr=document.getElementById('f'),msg=document.getElementById('msg');
-var stream=null,timer=null,busy=false,running=false,last='',lastAt=0,det=null,reader=null;
+var zoom=2,hwZoom=false,dz=1,stream=null,timer=null,busy=false,running=false,last='',lastAt=0,det=null,reader=null;
+async function applyZoom(){
+  dz=1;hwZoom=false;
+  var tr=stream&&stream.getVideoTracks()[0],cp={};
+  try{cp=tr&&tr.getCapabilities?tr.getCapabilities():{};}catch(e){}
+  if(cp.zoom&&cp.zoom.max){
+    var z=Math.max(cp.zoom.min||1,Math.min(cp.zoom.max,zoom));
+    try{await tr.applyConstraints({advanced:[{zoom:z}]});hwZoom=true;}catch(e2){hwZoom=false;}
+  }
+  if(!hwZoom){dz=zoom;}
+  v.style.transform='scale('+dz+')';
+  document.getElementById('zlab').textContent=zoom.toFixed(1)+'x'+(hwZoom?' (kamera)':(zoom>1?' (dijital)':''));
+}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(items));}catch(e){}}
 function say(t,c){msg.textContent=t;msg.className=c||'';}
 function beep(ok){
@@ -75,6 +88,7 @@ async function start(){
     var adv=[];if(cp.focusMode&&cp.focusMode.indexOf('continuous')>=0)adv.push({focusMode:'continuous'});
     if(adv.length)await tr.applyConstraints({advanced:adv});}catch(eF){}
   v.srcObject=stream;try{await v.play();}catch(e2){}
+  await applyZoom();
   say('Barkodu çerçevenin içine getir. Okunan seri otomatik listeye eklenir.');
   det=null;reader=null;
   if('BarcodeDetector' in window){try{det=new window.BarcodeDetector();}catch(e3){det=null;}}
@@ -86,7 +100,7 @@ async function start(){
     if(!running)return;
     try{
       if(v.videoWidth){
-        var vw=v.videoWidth,vh=v.videoHeight,cw=Math.round(vw*.9),ch=Math.round(vh*.42),cx=Math.round((vw-cw)/2),cy=Math.round((vh-ch)/2);
+        var vw=v.videoWidth,vh=v.videoHeight,cw=Math.round(vw*.92/dz),ch=Math.round(vh*.2/dz),cx=Math.round((vw-cw)/2),cy=Math.round((vh-ch)/2);
         var sc=Math.min(1,960/cw);cv.width=Math.round(cw*sc);cv.height=Math.round(ch*sc);
         ctx.drawImage(v,cx,cy,cw,ch,0,0,cv.width,cv.height);
         var code=null;
@@ -105,6 +119,8 @@ function stop(){
   if(stream){stream.getTracks().forEach(function(t){t.stop();});stream=null;}
   v.srcObject=null;say('Kamera durdu.');
 }
+document.getElementById('zin').onclick=function(){zoom=Math.min(6,Math.round((zoom+0.5)*10)/10);applyZoom();};
+document.getElementById('zout').onclick=function(){zoom=Math.max(1,Math.round((zoom-0.5)*10)/10);applyZoom();};
 document.getElementById('start').onclick=start;
 document.getElementById('stop').onclick=stop;
 document.getElementById('clear').onclick=function(){if(!items.length)return;if(window.confirm('Liste temizlensin mi?')){items=[];save();render();}};
