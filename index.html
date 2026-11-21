@@ -42,9 +42,8 @@ textarea{width:100%;min-height:200px;font:13px ui-monospace,Menlo,monospace;colo
 <div class="row"><button id="mSok" class="on">Söküm</button><button id="mYeni">Yeni ürün</button></div>
 <div class="row"><button class="primary" id="start">Başlat</button><button id="stop">Durdur</button><button id="zout">Zoom −</button><button id="zin">Zoom +</button><span id="zlab">2.0x</span></div>
 <div class="row" id="sokRow"><input type="text" id="bulk" inputmode="numeric" placeholder="İş emri no (okunanlara otomatik)"><button id="applyAll">Hepsine uygula</button></div>
-<div class="row"><span class="count" id="count">0</span><button class="primary" id="mailBtn">Mail taslağı</button><button id="copy">Listeyi kopyala</button><button id="clear">Temizle</button></div>
+<div class="row"><span class="count" id="count">0</span><button class="primary" id="mailBtn">Taslak hazırla</button><button id="copy">Listeyi kopyala</button><button id="clear">Temizle</button></div>
 </div>
-<div class="mailbox" id="mailbox"></div>
 <div class="list" id="list"></div>
 <datalist id="urunList"></datalist>
 <script src="https://cdn.jsdelivr.net/npm/@undecaf/zbar-wasm@0.11.0/dist/inlined/index.js"></script>
@@ -66,6 +65,7 @@ function beep(ok){
 }
 function norm(s){return String(s||'').trim().toUpperCase().replace(/\s+/g,'');}
 function normSie(s){var d=String(s||'').replace(/\D/g,'');return d?('SIE-'+d.padStart(10,'0')):'';}
+function woList(s){return String(s||'').split(/[\s,;]+/).map(normSie).filter(Boolean);}
 // katalog: seri 7 haneli MK ile başlıyorsa ürün otomatik bulunur
 function resolve(it){
   if(it.kod&&URUN[it.kod]){it.ad=URUN[it.kod];return;}
@@ -92,7 +92,7 @@ function render(){
     }
     var r=document.createElement('div');r.className='r';
     if(mode==='sok'){
-      var w=document.createElement('input');w.type='text';w.inputMode='numeric';w.placeholder='İş emri no';w.value=it.wo||'';
+      var w=document.createElement('input');w.type='text';w.inputMode='numeric';w.placeholder='İş emri no (birden çoksa virgülle)';w.value=it.wo||'';
       w.oninput=function(){it.wo=w.value;save();};r.append(w);
     }
     var b=document.createElement('button');b.textContent='Sil';
@@ -155,24 +155,17 @@ async function start(){
 function stop(){running=false;if(stream){stream.getTracks().forEach(function(t){t.stop();});stream=null;}v.srcObject=null;say('Kamera durdu.');}
 function mailText(){
   var lines=items.map(function(it,i){
-    return (i+1)+') MK '+(it.kod||'(bilinmiyor)')+' - '+(it.ad||'(ürün adı bilinmiyor)')+' - Seri: '+it.s+(String(it.wo||'').trim()?(' - İş emri: '+(normSie(it.wo)||it.wo)):'');
+    return (i+1)+') MK '+(it.kod||'(bilinmiyor)')+' - '+(it.ad||'(ürün adı bilinmiyor)')+' - Seri: '+it.s+(woList(it.wo).length?(' - İş emri: '+woList(it.wo).join(', ')):'');
   });
   return 'Merhaba,\n\naşağıdaki listede bulunan ürünler izmir depoya teslim edilmiştir.\n\n'+lines.join('\n')+'\n';
 }
 function gmailUrl(t){return 'https://mail.google.com/mail/?view=cm&fs=1&to='+encodeURIComponent(MAIL_TO.join(','))+'&body='+encodeURIComponent(t).replace(/%0A/g,'%0D%0A');}
 function showMail(){
-  var box=document.getElementById('mailbox');box.textContent='';
   if(!items.length){say('Listede ürün yok.','warn');return;}
-  var eksik=items.filter(function(i){return !i.kod;}).length,noWo=items.filter(function(i){return !String(i.wo||'').trim();}).length;
-  var h=document.createElement('div');h.className='item';
-  h.textContent='Alıcılar: '+MAIL_TO.join(', ')+' · Konu: boş'+(eksik?(' · UYARI: '+eksik+' üründe ürün adı yok'):'')+(noWo?(' · '+noWo+' üründe iş emri yok'):'');
-  var ta=document.createElement('textarea');ta.value=mailText();
-  var row=document.createElement('div');row.className='row';row.style.maxWidth='none';
-  var a=document.createElement('a');a.className='btn primary';a.target='_blank';a.rel='noopener';a.textContent='Gmail\'de taslak olarak aç';a.href=gmailUrl(ta.value);
-  ta.oninput=function(){a.href=gmailUrl(ta.value);};
-  var cp=document.createElement('button');cp.textContent='Metni kopyala';
-  cp.onclick=async function(){try{await navigator.clipboard.writeText(ta.value);say('Mail metni kopyalandı.','ok');}catch(e){ta.select();say('Metni seçip kopyala.','warn');}};
-  row.append(a,cp);box.append(h,ta,row);box.scrollIntoView({behavior:'smooth'});
+  var eksik=items.filter(function(i){return !i.kod;}).length,noWo=items.filter(function(i){return !woList(i.wo).length;}).length;
+  var w=window.open(gmailUrl(mailText()),'_blank');
+  if(!w){say('Gmail açılamadı: tarayıcı açılır pencereyi engelledi. Bu site için izin ver.','warn');return;}
+  say('Gmail taslağı açıldı: konuyu yaz ve gönder.'+(eksik?(' UYARI: '+eksik+' üründe ürün adı yok.'):'')+(noWo?(' '+noWo+' üründe iş emri yok.'):''),(eksik||noWo)?'warn':'ok');
 }
 var dl=document.getElementById('urunList');Object.keys(URUN).forEach(function(k){var o=document.createElement('option');o.value=k+' · '+URUN[k];dl.append(o);});
 document.getElementById('bulk').value=bulk;
@@ -185,7 +178,7 @@ document.getElementById('zin').onclick=function(){zoom=Math.min(6,Math.round((zo
 document.getElementById('zout').onclick=function(){zoom=Math.max(1,Math.round((zoom-0.5)*10)/10);applyZoom();};
 document.getElementById('start').onclick=start;
 document.getElementById('stop').onclick=stop;
-document.getElementById('clear').onclick=function(){if(!items.length)return;if(window.confirm('Liste temizlensin mi?')){items=[];save();render();document.getElementById('mailbox').textContent='';}};
+document.getElementById('clear').onclick=function(){if(!items.length)return;if(window.confirm('Liste temizlensin mi?')){items=[];save();render();}};
 document.getElementById('copy').onclick=async function(){
   var text=items.map(function(x){return x.s;}).join('\n');if(!text){say('Liste boş.','warn');return;}
   try{await navigator.clipboard.writeText(text);say(items.length+' seri kopyalandı. ','ok');var l=document.createElement('a');l.href='https://claude.ai/artifact/N6tWSUBi5HRvY3oQAs6G8e#okut';l.textContent='Deftere dön ve yapıştır';msg.append(l);}
