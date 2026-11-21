@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Seri Okuyucu v8</title>
+<title>Seri Okuyucu v9</title>
 <style>
 :root{--bg:#101614;--surface:#18211e;--ink:#e6ece9;--muted:#9aa9a3;--line:#2c3a35;--accent:#3fb6a0;--ok:#62c88a;--warn:#e0b04a}
 *{box-sizing:border-box}
@@ -38,7 +38,7 @@ textarea{width:100%;min-height:200px;font:13px ui-monospace,Menlo,monospace;colo
 <body>
 <div id="top">
 <div class="cam" id="cam"><video id="v" playsinline muted></video><div class="frame" id="f"></div></div>
-<div id="msg">Önce işlemi seç, sonra Başlat'a bas. (sürüm v8)</div>
+<div id="msg">Önce işlemi seç, sonra Başlat'a bas. (sürüm v9)</div>
 <div class="row"><button id="mSok" class="on">Söküm</button><button id="mYeni">Yeni ürün</button></div>
 <div class="row"><button class="primary" id="start">Başlat</button><button id="stop">Durdur</button><button id="zout">Zoom −</button><button id="zin">Zoom +</button><span id="zlab">2.0x</span></div>
 <div class="row" id="sokRow"><input type="text" id="bulk" inputmode="numeric" placeholder="İş emri no (okunanlara otomatik)"><button id="applyAll">Hepsine uygula</button></div>
@@ -155,7 +155,8 @@ async function start(){
 function stop(){running=false;if(stream){stream.getTracks().forEach(function(t){t.stop();});stream=null;}v.srcObject=null;say('Kamera durdu.');}
 function mailText(){
   var lines=items.map(function(it,i){
-    return (i+1)+') MK '+(it.kod||'(bilinmiyor)')+' - '+(it.ad||'(ürün adı bilinmiyor)')+' - Seri: '+it.s+(woList(it.wo).length?(' - İş emri: '+woList(it.wo).join(', ')):'');
+    var w=woList(it.wo);
+    return (i+1)+') İş emri: '+(w.length?w.join(', '):'(yok)')+' - MK: '+(it.kod||'(bilinmiyor)')+' - Seri: '+it.s+' - Ürün: '+(it.ad||'(ürün adı bilinmiyor)');
   });
   return 'Merhaba,\n\naşağıdaki listede bulunan ürünler izmir depoya teslim edilmiştir.\n\n'+lines.join('\n')+'\n';
 }
